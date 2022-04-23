@@ -1,0 +1,30 @@
+{
+    "id": "4eb5690e-ae52-41b5-b82a-1fca8cbafb90",
+    "version": "0.0.1",
+    "requiredApiVersion": "^1.19.0",
+    "iconFile": "icon.png",
+    "author": {
+        "name": "Mathias Herbaux",
+        "homepage": "https://mathrb.com",
+        "support": "https://support.mathrb.com"
+    },
+    "name": "Grab a coffee with a teammate",
+    "nameSlug": "grab-a-coffee-with-a-teammate",
+    "classFile": "GrabACoffeeWithATeammateApp.ts",
+    "description": "Each morning, the application create pairs of team mates to grab a virtual coffee",
+    "implements": [],
+    "permissions": [
+        {
+            "name": "scheduler"
+        },
+        {
+            "name": "room.read"
+        },
+        {
+            "name": "message.write"
+        },
+        {
+            "name": "user.read"
+        }
+    ]
+}
