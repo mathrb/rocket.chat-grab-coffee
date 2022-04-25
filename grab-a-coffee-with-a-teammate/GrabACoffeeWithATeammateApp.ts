@@ -33,11 +33,7 @@ export class GrabACoffeeWithATeammateApp extends App {
                         let members = await this.getAccessors().reader.getRoomReader().getMembers(room.id);
                         this.getLogger().log(members.map(m => m.name).join("|"));
                         this.shuffle(members);
-                        this.getLogger().log(members.map(m => m.name).join("|"));
-                        for (let index = 0; index < members.length - 1; index = index + 2) {
-                            const element = members[index];
-                            this.getLogger().log(`${element.name} <==> ${members[index + 1].name}`);
-                        }
+                        // do grouping
                     }
                 },
                 // startupSetting: {
