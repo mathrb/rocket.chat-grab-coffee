@@ -25,6 +25,9 @@
         },
         {
             "name": "user.read"
+        },
+        {
+            "name": "persistence"
         }
     ]
 }

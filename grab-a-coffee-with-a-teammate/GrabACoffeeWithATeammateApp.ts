@@ -3,8 +3,11 @@ import {
     IConfigurationExtend,
     IEnvironmentRead,
     ILogger,
-    IModify
+    IModify,
+    IPersistence,
+    IRead
 } from '@rocket.chat/apps-engine/definition/accessors';
+import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 import { App } from '@rocket.chat/apps-engine/definition/App';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
 import { StartupType } from '@rocket.chat/apps-engine/definition/scheduler';
@@ -24,51 +27,64 @@ export class GrabACoffeeWithATeammateApp extends App {
         configuration.scheduler.registerProcessors([
             {
                 id: 'coffeePlanner',
-                processor: async (jobContext, read, modify: IModify, http, persistence) => {
-                    let room = await this.getAccessors().reader.getRoomReader().getByName("general");
-                    this.getLogger().info(`id: ${room?.id}`);
-                    if (room) {
-                        if (room.creator) {
-                            this.getLogger().log(`creatorId: ${room.creator.id}, name: ${room.creator.name}`);
-                        }
-                        let me = await this.getAccessors().reader.getUserReader().getAppUser();
-                        let members = await this.getAccessors().reader.getRoomReader().getMembers(room.id);
-                        members = members.filter(m => m.id != me?.id);
-                        this.getLogger().log(members.map(m => m.name).join("|"));
-                        const draw = this.newDraw(members.map(m => m.id), this.getLastDraw(room.id), 2);
-                        if (me) {
-                            let msg = modify.getCreator().startMessage()
-                                .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
-                            msg.setText("Hello all, it's time to discover your mate for a coffee:");
-                            await modify.getCreator().finish(msg);
-                            for (let index = 0; index < draw.length; index++) {
-                                const group = draw[index];
-                                const groupMembers = members.filter(m => group.indexOf(m.id) > -1);
-                                msg = modify.getCreator().startMessage()
-                                    .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
-                                msg.setText("| " + groupMembers.map(m => `@${m.username}`).join(" :coffee: "));
-                                await modify.getCreator().finish(msg);
+                processor: async (jobContext, read: IRead, modify: IModify, http, persistence: IPersistence) => {
+                    try {
+                        let room = await read.getRoomReader().getByName("general");
+                        this.getLogger().info(`id: ${room?.id}`);
+                        if (room) {
+                            if (room.creator) {
+                                this.getLogger().log(`creatorId: ${room.creator.id}, name: ${room.creator.name}`);
                             }
-                        } else {
-                            this.getLogger().log("Unable to get me");
+                            let me = await read.getUserReader().getAppUser();
+                            if (me) {
+                                let members = await read.getRoomReader().getMembers(room.id);
+                                members = members.filter(m => m.id != me?.id);
+                                this.getLogger().log(members.map(m => m.name).join("|"));
+                                const meAssoc = new RocketChatAssociationRecord(RocketChatAssociationModel.ROOM, me?.id);
+                                const previousDraw = await read.getPersistenceReader().readByAssociation(meAssoc);
+                                let draw: any = null;
+                                if (previousDraw) {
+                                    this.getLogger().info(JSON.stringify(previousDraw));
+                                    draw = this.newDraw(members.map(m => m.id), previousDraw[previousDraw.length -1]["draw"], 2);
+                                } else {
+                                    draw = this.newDraw(members.map(m => m.id), [], 2);
+                                }
+
+                                persistence.createWithAssociation({
+                                    draw
+                                }, meAssoc);
+                                let msg = modify.getCreator().startMessage()
+                                    .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
+                                msg.setText("Hello all, it's time to discover your mate for a coffee:");
+                                await modify.getCreator().finish(msg);
+                                for (let index = 0; index < draw.length; index++) {
+                                    const group = draw[index];
+                                    const groupMembers = members.filter(m => group.indexOf(m.id) > -1);
+                                    msg = modify.getCreator().startMessage()
+                                        .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
+                                    msg.setText("| " + groupMembers.map(m => `@${m.username}`).join(" :coffee: "));
+                                    await modify.getCreator().finish(msg);
+                                }
+
+                            } else {
+                                this.getLogger().log("Unable to get me");
+                            }
                         }
+                    } catch (e) {
+                        this.getLogger().error(e)
                     }
                 },
-                startupSetting: {
-                    type: StartupType.ONETIME,
-                    when: '5 seconds',
-                    data: { test: true },
-                }
                 // startupSetting: {
-                //     type: StartupType.RECURRING,
-                //     interval: '20 seconds'
+                //     type: StartupType.ONETIME,
+                //     when: '5 seconds',
+                //     data: { test: true },
                 // }
+                startupSetting: {
+                    type: StartupType.RECURRING,
+                    interval: '60 seconds'
+                }
             },
         ]);
-    }
-
-    private getLastDraw(roomId: string) {
-        return [];
     }
 
     // https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
