@@ -3,6 +3,7 @@ import {
     IConfigurationExtend,
     IEnvironmentRead,
     ILogger,
+    IModify
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { App } from '@rocket.chat/apps-engine/definition/App';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
@@ -16,37 +17,58 @@ export class GrabACoffeeWithATeammateApp extends App {
     }
 
     public async initialize(configurationExtend: IConfigurationExtend, environmentRead: IEnvironmentRead): Promise<void> {
-        await this.extendConfiguration(configurationExtend, environmentRead);        
+        await this.extendConfiguration(configurationExtend, environmentRead);
     }
 
     public async extendConfiguration(configuration: IConfigurationExtend, environmentRead: IEnvironmentRead) {
         configuration.scheduler.registerProcessors([
             {
                 id: 'coffeePlanner',
-                processor: async () => {
+                processor: async (jobContext, read, modify: IModify, http, persistence) => {
                     let room = await this.getAccessors().reader.getRoomReader().getByName("general");
                     this.getLogger().info(`id: ${room?.id}`);
                     if (room) {
                         if (room.creator) {
                             this.getLogger().log(`creatorId: ${room.creator.id}, name: ${room.creator.name}`);
                         }
+                        let me = await this.getAccessors().reader.getUserReader().getAppUser();
                         let members = await this.getAccessors().reader.getRoomReader().getMembers(room.id);
+                        members = members.filter(m => m.id != me?.id);
                         this.getLogger().log(members.map(m => m.name).join("|"));
-                        this.shuffle(members);
-                        // do grouping
+                        const draw = this.newDraw(members.map(m => m.id), this.getLastDraw(room.id), 2);
+                        if (me) {
+                            let msg = modify.getCreator().startMessage()
+                                .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
+                            msg.setText("Hello all, it's time to discover your mate for a coffee:");
+                            await modify.getCreator().finish(msg);
+                            for (let index = 0; index < draw.length; index++) {
+                                const group = draw[index];
+                                const groupMembers = members.filter(m => group.indexOf(m.id) > -1);
+                                msg = modify.getCreator().startMessage()
+                                    .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
+                                msg.setText("| " + groupMembers.map(m => `@${m.username}`).join(" :coffee: "));
+                                await modify.getCreator().finish(msg);
+                            }
+                        } else {
+                            this.getLogger().log("Unable to get me");
+                        }
                     }
                 },
-                // startupSetting: {
-                //     type: StartupType.ONETIME,
-                //     when: '10 seconds',
-                //     data: { test: true },
-                // }
                 startupSetting: {
-                    type: StartupType.RECURRING,
-                    interval: '20 seconds'
+                    type: StartupType.ONETIME,
+                    when: '5 seconds',
+                    data: { test: true },
                 }
+                // startupSetting: {
+                //     type: StartupType.RECURRING,
+                //     interval: '20 seconds'
+                // }
             },
         ]);
+    }
+
+    private getLastDraw(roomId: string) {
+        return [];
     }
 
     // https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
@@ -66,5 +88,44 @@ export class GrabACoffeeWithATeammateApp extends App {
         }
 
         return array;
+    }
+
+    private addToGroup(groups: any[], item: any) {
+        let minLength = -1;
+        let idx = -1;
+        for (let index = 0; index < groups.length; index++) {
+            const element = groups[index];
+            if (minLength == -1 || element.length < minLength) {
+                minLength = element.length;
+                idx = index;
+            }
+        }
+
+        groups[idx].push(item);
+    }
+
+    private addItemsToGroup(groups: any[], items: any[]) {
+        items.forEach(i => this.addToGroup(groups, i));
+    }
+
+    private newDraw(members: any[], previousDraw: any[], groupSize: number) {
+        const groups: any[] = [];
+        const numGroups = Math.trunc(members.length / groupSize);
+        for (let index = 0; index < numGroups; index++) {
+            groups.push([]);
+        }
+        let previousMembers: any[] = [];
+        let pool: any[] = [];
+        this.shuffle(previousDraw).forEach(pair => {
+            previousMembers = previousMembers.concat(pair);
+            const newPair = pair.filter(p => members.indexOf(p) != -1);
+            if (newPair.length != pair.length)
+                pool = pool.concat(newPair);
+            else
+                this.addItemsToGroup(groups, newPair);
+        });
+        pool = pool.concat(members.filter(i => previousMembers.indexOf(i) == -1));
+        this.addItemsToGroup(groups, this.shuffle(pool));
+        return groups;
     }
 }
