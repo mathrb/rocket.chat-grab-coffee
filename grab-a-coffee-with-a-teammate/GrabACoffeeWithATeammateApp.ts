@@ -5,84 +5,110 @@ import {
     ILogger,
     IModify,
     IPersistence,
-    IRead
+    IRead,
+    IConfigurationModify,
+    IHttp
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 import { App } from '@rocket.chat/apps-engine/definition/App';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
 import { StartupType } from '@rocket.chat/apps-engine/definition/scheduler';
+import { IUser } from '@rocket.chat/apps-engine/definition/users';
+import { ISetting } from '@rocket.chat/apps-engine/definition/settings';
+import { settings } from './settings';
+import { IRoom } from '@rocket.chat/apps-engine/definition/rooms';
 
 
 
 export class GrabACoffeeWithATeammateApp extends App {
+
+    me: IUser;
+    roomname: string;
+    coffeeRoom: IRoom;
+    groupsSize: number;
+
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
     }
 
     public async initialize(configurationExtend: IConfigurationExtend, environmentRead: IEnvironmentRead): Promise<void> {
         await this.extendConfiguration(configurationExtend, environmentRead);
+        const me = await this.getAccessors().reader.getUserReader().getAppUser();
+        if (me) {
+            this.me = me;
+        } else {
+            this.getLogger().error("unable to get app user.");
+        }
+    }
+
+    public async onSettingUpdated(setting: ISetting, configModify: IConfigurationModify, read: IRead, http: IHttp): Promise<void> {
+        switch (setting.id) {
+            case 'Members_Room_Name':
+                this.roomname = setting.value;
+                if (this.roomname) {
+                    this.coffeeRoom = await read.getRoomReader().getByName(this.roomname) as IRoom;
+                }
+                break;
+            case 'Groups_Size':
+                this.groupsSize = setting.value;
+                break;
+        }
     }
 
     public async extendConfiguration(configuration: IConfigurationExtend, environmentRead: IEnvironmentRead) {
+        await Promise.all(settings.map((setting) => configuration.settings.provideSetting(setting)));
         configuration.scheduler.registerProcessors([
             {
                 id: 'coffeePlanner',
                 processor: async (jobContext, read: IRead, modify: IModify, http, persistence: IPersistence) => {
-                    try {
-                        let room = await read.getRoomReader().getByName("general");
-                        this.getLogger().info(`id: ${room?.id}`);
-                        if (room) {
-                            if (room.creator) {
-                                this.getLogger().log(`creatorId: ${room.creator.id}, name: ${room.creator.name}`);
+                    try {                        
+                        this.getLogger().info(`id: ${this.coffeeRoom?.id}`);
+                        if (this.coffeeRoom) {
+                            if (this.coffeeRoom.creator) {
+                                this.getLogger().log(`creatorId: ${this.coffeeRoom.creator.id}, name: ${this.coffeeRoom.creator.name}`);
                             }
-                            let me = await read.getUserReader().getAppUser();
-                            if (me) {
-                                let members = await read.getRoomReader().getMembers(room.id);
-                                members = members.filter(m => m.id != me?.id);
-                                this.getLogger().log(members.map(m => m.name).join("|"));
-                                const meAssoc = new RocketChatAssociationRecord(RocketChatAssociationModel.ROOM, me?.id);
-                                const previousDraw = await read.getPersistenceReader().readByAssociation(meAssoc);
-                                let draw: any = null;
-                                if (previousDraw) {
-                                    this.getLogger().info(JSON.stringify(previousDraw));
-                                    draw = this.newDraw(members.map(m => m.id), previousDraw[previousDraw.length -1]["draw"], 2);
-                                } else {
-                                    draw = this.newDraw(members.map(m => m.id), [], 2);
-                                }
-
-                                persistence.createWithAssociation({
-                                    draw
-                                }, meAssoc);
-                                let msg = modify.getCreator().startMessage()
-                                    .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
-                                msg.setText("Hello all, it's time to discover your mate for a coffee:");
-                                await modify.getCreator().finish(msg);
-                                for (let index = 0; index < draw.length; index++) {
-                                    const group = draw[index];
-                                    const groupMembers = members.filter(m => group.indexOf(m.id) > -1);
-                                    msg = modify.getCreator().startMessage()
-                                        .setRoom(room).setSender(me).setEmojiAvatar(":coffee:").setGroupable(true);
-                                    msg.setText("| " + groupMembers.map(m => `@${m.username}`).join(" :coffee: "));
-                                    await modify.getCreator().finish(msg);
-                                }
-
+                            let members = await read.getRoomReader().getMembers(this.coffeeRoom.id);
+                            members = members.filter(m => m.id != this.me.id);
+                            this.getLogger().log(members.map(m => m.name).join("|"));
+                            const meAssoc = new RocketChatAssociationRecord(RocketChatAssociationModel.ROOM, this.me.id);
+                            const previousDraw = await read.getPersistenceReader().readByAssociation(meAssoc);
+                            let draw: any = null;
+                            if (previousDraw) {
+                                this.getLogger().info(JSON.stringify(previousDraw));
+                                draw = this.newDraw(members.map(m => m.id), previousDraw[previousDraw.length - 1]["draw"], this.groupsSize);
                             } else {
-                                this.getLogger().log("Unable to get me");
+                                draw = this.newDraw(members.map(m => m.id), [], this.groupsSize);
+                            }
+
+                            persistence.createWithAssociation({
+                                draw
+                            }, meAssoc);
+                            let msg = modify.getCreator().startMessage()
+                                .setRoom(this.coffeeRoom).setSender(this.me).setEmojiAvatar(":coffee:").setGroupable(true);
+                            msg.setText("Hello all, it's time to discover your mate for a coffee:");
+                            await modify.getCreator().finish(msg);
+                            for (let index = 0; index < draw.length; index++) {
+                                const group = draw[index];
+                                const groupMembers = members.filter(m => group.indexOf(m.id) > -1);
+                                msg = modify.getCreator().startMessage()
+                                    .setRoom(this.coffeeRoom).setSender(this.me).setEmojiAvatar(":coffee:").setGroupable(true);
+                                msg.setText("| " + groupMembers.map(m => `@${m.username}`).join(" :coffee: "));
+                                await modify.getCreator().finish(msg);
                             }
                         }
                     } catch (e) {
                         this.getLogger().error(e)
                     }
                 },
-                // startupSetting: {
-                //     type: StartupType.ONETIME,
-                //     when: '5 seconds',
-                //     data: { test: true },
-                // }
                 startupSetting: {
-                    type: StartupType.RECURRING,
-                    interval: '60 seconds'
+                    type: StartupType.ONETIME,
+                    when: '5 seconds',
+                    data: { test: true },
                 }
+                // startupSetting: {
+                //     type: StartupType.RECURRING,
+                //     interval: '60 seconds'
+                // }
             },
         ]);
     }
