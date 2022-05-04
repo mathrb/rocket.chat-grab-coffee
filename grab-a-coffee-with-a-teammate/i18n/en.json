@@ -2,5 +2,7 @@
     "RandomCoffee_Members_Room_Name": "Room name",
     "RandomCoffee_Members_Room_Name_Description": "The room name where users will be paired for coffee.",
     "RandomCoffee_Groups_Size": "Group size",
-    "RandomCoffee_Groups_Size_Description": "The number of people per group."
+    "RandomCoffee_Groups_Size_Description": "The number of people per group.",
+    "Trigger_Name": "Trigger",
+    "Trigger_Description": "We expect a cron or any value supported by rocket.chat interval, including https://github.com/agenda/human-interval."
 }

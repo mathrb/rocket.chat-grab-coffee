@@ -26,24 +26,39 @@ export class GrabACoffeeWithATeammateApp extends App {
     roomname: string;
     coffeeRoom: IRoom;
     groupsSize: number;
+    trigger: string;
 
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
     }
 
     public async initialize(configurationExtend: IConfigurationExtend, environmentRead: IEnvironmentRead): Promise<void> {
-        await this.extendConfiguration(configurationExtend, environmentRead);
         const me = await this.getAccessors().reader.getUserReader().getAppUser();
         if (me) {
             this.me = me;
         } else {
             this.getLogger().error("unable to get app user.");
+        }        
+
+        await this.extendConfiguration(configurationExtend, environmentRead);
+    }
+
+    public async onEnable(environment: IEnvironmentRead, configurationModify: IConfigurationModify): Promise<boolean> {
+        this.roomname = await environment.getSettings().getValueById('Members_Room');
+        if (this.roomname) {
+            this.coffeeRoom = await this.getAccessors().reader.getRoomReader().getByName(this.roomname) as IRoom;
         }
+        
+        this.groupsSize = await environment.getSettings().getValueById('Groups_Size');
+        this.trigger = await environment.getSettings().getValueById('Trigger');
+        configurationModify.scheduler.scheduleRecurring({ id: "coffeePlanner", "interval": this.trigger });
+        this.getLogger().info(`Job configuration is: ${this.roomname}(${this.coffeeRoom}) ${this.groupsSize} ${this.trigger}`);
+        return true;
     }
 
     public async onSettingUpdated(setting: ISetting, configModify: IConfigurationModify, read: IRead, http: IHttp): Promise<void> {
         switch (setting.id) {
-            case 'Members_Room_Name':
+            case 'Members_Room':
                 this.roomname = setting.value;
                 if (this.roomname) {
                     this.coffeeRoom = await read.getRoomReader().getByName(this.roomname) as IRoom;
@@ -51,6 +66,12 @@ export class GrabACoffeeWithATeammateApp extends App {
                 break;
             case 'Groups_Size':
                 this.groupsSize = setting.value;
+                break;
+            case 'Trigger':
+                this.trigger = setting.value;
+                configModify.scheduler.cancelJob("coffeePlanner");
+                configModify.scheduler.scheduleRecurring({ id: "coffeePlanner", "interval": setting.value });
+                this.getLogger().info(`Scheduling job with interval ${setting.value}`);
                 break;
         }
     }
@@ -61,7 +82,7 @@ export class GrabACoffeeWithATeammateApp extends App {
             {
                 id: 'coffeePlanner',
                 processor: async (jobContext, read: IRead, modify: IModify, http, persistence: IPersistence) => {
-                    try {                        
+                    try {
                         this.getLogger().info(`id: ${this.coffeeRoom?.id}`);
                         if (this.coffeeRoom) {
                             if (this.coffeeRoom.creator) {
@@ -73,16 +94,17 @@ export class GrabACoffeeWithATeammateApp extends App {
                             const meAssoc = new RocketChatAssociationRecord(RocketChatAssociationModel.ROOM, this.me.id);
                             const previousDraw = await read.getPersistenceReader().readByAssociation(meAssoc);
                             let draw: any = null;
-                            if (previousDraw) {
+                            if (previousDraw && previousDraw.length > 0) {
                                 this.getLogger().info(JSON.stringify(previousDraw));
                                 draw = this.newDraw(members.map(m => m.id), previousDraw[previousDraw.length - 1]["draw"], this.groupsSize);
                             } else {
                                 draw = this.newDraw(members.map(m => m.id), [], this.groupsSize);
                             }
 
-                            persistence.createWithAssociation({
+                            persistence.updateByAssociation(meAssoc, {
                                 draw
-                            }, meAssoc);
+                            }, true);
+                            
                             let msg = modify.getCreator().startMessage()
                                 .setRoom(this.coffeeRoom).setSender(this.me).setEmojiAvatar(":coffee:").setGroupable(true);
                             msg.setText("Hello all, it's time to discover your mate for a coffee:");
@@ -99,16 +121,7 @@ export class GrabACoffeeWithATeammateApp extends App {
                     } catch (e) {
                         this.getLogger().error(e)
                     }
-                },
-                startupSetting: {
-                    type: StartupType.ONETIME,
-                    when: '5 seconds',
-                    data: { test: true },
                 }
-                // startupSetting: {
-                //     type: StartupType.RECURRING,
-                //     interval: '60 seconds'
-                // }
             },
         ]);
     }
@@ -164,7 +177,7 @@ export class GrabACoffeeWithATeammateApp extends App {
             if (newPair.length != pair.length)
                 pool = pool.concat(newPair);
             else
-                this.addItemsToGroup(groups, newPair);
+                this.addItemsToGroup(groups, this.shuffle(newPair));
         });
         pool = pool.concat(members.filter(i => previousMembers.indexOf(i) == -1));
         this.addItemsToGroup(groups, this.shuffle(pool));
