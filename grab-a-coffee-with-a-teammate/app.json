@@ -6,7 +6,7 @@
     "author": {
         "name": "Mathias Herbaux",
         "homepage": "https://github.com/mathrb/rocket.chat-grab-coffee",
-        "support": "https://github.com/mathrb/rocket.chat-grab-coffee"
+        "support": "https://github.com/mathrb/rocket.chat-grab-coffee/issues"
     },
     "name": "Coffee planner",
     "nameSlug": "grab-a-coffee-with-a-teammate",
