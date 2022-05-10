@@ -27,6 +27,7 @@ export class GrabACoffeeWithATeammateApp extends App {
     coffeeRoom: IRoom;
     groupsSize: number;
     trigger: string;
+    initMessage: string;
 
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
@@ -38,7 +39,7 @@ export class GrabACoffeeWithATeammateApp extends App {
             this.me = me;
         } else {
             this.getLogger().error("unable to get app user.");
-        }        
+        }
 
         await this.extendConfiguration(configurationExtend, environmentRead);
     }
@@ -48,7 +49,8 @@ export class GrabACoffeeWithATeammateApp extends App {
         if (this.roomname) {
             this.coffeeRoom = await this.getAccessors().reader.getRoomReader().getByName(this.roomname) as IRoom;
         }
-        
+
+        this.initMessage = await environment.getSettings().getValueById('Init_Message');
         this.groupsSize = await environment.getSettings().getValueById('Groups_Size');
         this.trigger = await environment.getSettings().getValueById('Trigger');
         configurationModify.scheduler.scheduleRecurring({ id: "coffeePlanner", "interval": this.trigger });
@@ -72,6 +74,9 @@ export class GrabACoffeeWithATeammateApp extends App {
                 configModify.scheduler.cancelJob("coffeePlanner");
                 configModify.scheduler.scheduleRecurring({ id: "coffeePlanner", "interval": setting.value });
                 this.getLogger().info(`Scheduling job with interval ${setting.value}`);
+                break;
+            case 'Init_Message':
+                this.initMessage = setting.value;
                 break;
         }
     }
@@ -104,10 +109,10 @@ export class GrabACoffeeWithATeammateApp extends App {
                             persistence.updateByAssociation(meAssoc, {
                                 draw
                             }, true);
-                            
+
                             let msg = modify.getCreator().startMessage()
                                 .setRoom(this.coffeeRoom).setSender(this.me).setEmojiAvatar(":coffee:").setGroupable(true);
-                            msg.setText("Hello all, it's time to discover your mate for a coffee:");
+                            msg.setText(this.initMessage);
                             await modify.getCreator().finish(msg);
                             for (let index = 0; index < draw.length; index++) {
                                 const group = draw[index];

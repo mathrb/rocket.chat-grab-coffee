@@ -7,7 +7,16 @@ export const settings: Array<ISetting> = [
         required: true,
         public: false,
         i18nLabel: 'RandomCoffee_Members_Room_Name',
-        i18nDescription: 'RandomCoffee_Members_Room_Name_Description',
+        i18nDescription: 'RandomCoffee_Members_Room_Description',
+    },
+    {
+        id: 'Init_Message',
+        type: SettingType.STRING,
+        packageValue: 'This weeks random coffees are:',
+        required: true,
+        public: false,
+        i18nLabel: 'RandomCoffee_Init_Message_Name',
+        i18nDescription: 'RandomCoffee_Init_Message_Description',
     },
     {
         id: 'Groups_Size',

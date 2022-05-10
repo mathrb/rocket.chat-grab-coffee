@@ -1,6 +1,8 @@
 {
     "RandomCoffee_Members_Room_Name": "Room name",
-    "RandomCoffee_Members_Room_Name_Description": "The room name where users will be paired for coffee.",
+    "RandomCoffee_Members_Room_Description": "The room name where users will be paired for coffee.",
+    "RandomCoffee_Init_Message_Name": "Message",
+    "RandomCoffee_Init_Message_Description": "The message that will initiate the pairing.",
     "RandomCoffee_Groups_Size": "Group size",
     "RandomCoffee_Groups_Size_Description": "The number of people per group.",
     "Trigger_Name": "Trigger",
