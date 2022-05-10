@@ -1,5 +1,5 @@
 # Grab a coffee with a teammate
-Each morning, the application create pairs of team mates to grab a virtual coffee
+On a regular basis, the application create pairs of team mates to grab a virtual coffee
 
 ## Getting Started
 Now that you have generated a blank default Rocket.Chat App, what are you supposed to do next?
