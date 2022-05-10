@@ -5,13 +5,13 @@
     "iconFile": "icon.png",
     "author": {
         "name": "Mathias Herbaux",
-        "homepage": "https://mathrb.com",
-        "support": "https://support.mathrb.com"
+        "homepage": "https://github.com/mathrb/rocket.chat-grab-coffee",
+        "support": "https://github.com/mathrb/rocket.chat-grab-coffee"
     },
-    "name": "Grab a coffee with a teammate",
+    "name": "Coffee planner",
     "nameSlug": "grab-a-coffee-with-a-teammate",
     "classFile": "GrabACoffeeWithATeammateApp.ts",
-    "description": "Each morning, the application create pairs of team mates to grab a virtual coffee",
+    "description": "On regular basis, the application create pairs of team mates to grab a virtual coffee",
     "implements": [],
     "permissions": [
         {
